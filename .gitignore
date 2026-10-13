@@ -1,0 +1,12 @@
+# Mail server logs and archives
+*.log
+*.zip
+# Results
+*.xlsx
+~$*
+# Real configuration (contains addresses and mailboxes)
+aliases.txt
+mailboxes.txt
+# Python
+__pycache__/
+*.pyc

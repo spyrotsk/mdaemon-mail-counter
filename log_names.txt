@@ -1,0 +1,110 @@
+# MDaemon log file names, one section per MDaemon language.
+#
+# MDaemon writes its daily logs as  MDaemon-YYYY-MM-DD-<name>.log  and translates <name>
+# (and some log lines) into the language it was installed in. mail_counter.py reads this
+# file and tries the names of every section, so logs in any listed language are found
+# without further options.
+#
+# Keys (several names can be given, separated by commas):
+#   routing          routing log (required)
+#   smtp_in          inbound SMTP log
+#   smtp_out         outbound SMTP log
+#   content_filter   content filter log (optional)
+#   all              log with everything in one file, read with --all-log
+#   message_created  text written in the inbound SMTP log when a message is saved, i.e. the
+#                    part before ": <path of the .msg file>"
+#
+# If your logs are not found: look at the file names in your MDaemon Logs folder, then
+# uncomment the section of your language (remove the leading "#") and fill it in, or add
+# a new section. A key you leave out is simply not added.
+# Lines starting with # are ignored.
+
+[English]
+# routing, smtp_in and smtp_out are the standard English names. The content filter name
+# has not been checked on an English server, so both spellings are accepted.
+routing = Routing
+smtp_in = SMTP-in
+smtp_out = SMTP-out
+content_filter = Content-Filter, ContentFilter
+all = all
+message_created = Message creation successful
+
+[Italian]
+# Checked on real logs from an Italian MDaemon.
+routing = Instradamento
+smtp_in = SMTP-(entrata)
+smtp_out = SMTP-(uscita)
+content_filter = Filtro-contenuti
+all = all
+message_created = Creazione messaggio successful
+
+# ---------------------------------------------------------------------------------------
+# PLACEHOLDERS - to be filled in.
+# MDaemon is reported to be available in these languages too, but no reliable source was
+# found for the names it gives to its log files, so they are not guessed here. If you run
+# MDaemon in one of them, please fill in the section and consider sharing it.
+# ---------------------------------------------------------------------------------------
+
+#[German]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[French]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Spanish]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Portuguese]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Russian]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Japanese]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Korean]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =
+
+#[Chinese]
+#routing =
+#smtp_in =
+#smtp_out =
+#content_filter =
+#all =
+#message_created =

@@ -1,0 +1,10 @@
+# Mailbox folders: one line per account (primary addresses only), in the format
+#    primary address = folder path on the MDaemon server
+# The folder can have a name different from the address (renamed accounts).
+# Optional "domain = ..." line instead of the --domain argument.
+# Copy this file to mailboxes.txt and fill in your own data.
+domain = example.com
+sysadmin@example.com = C:\MDaemon\Users\example.com\sysadmin
+john.smith@example.com = C:\MDaemon\Users\example.com\john.smith
+jane.doe@example.com = C:\MDaemon\Users\example.com\purchasing
+info@example.com = C:\MDaemon\Users\example.com\info@example.com

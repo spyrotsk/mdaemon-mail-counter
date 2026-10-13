@@ -1,0 +1,11 @@
+# Mailbox aliases: one line per alias, in the format
+#    alias = primary address
+# The primary address must appear in mailboxes.txt.
+# Blank lines and lines starting with # are ignored.
+# Copy this file to aliases.txt and fill in your own data.
+postmaster@example.com = sysadmin@example.com
+abuse@example.com = sysadmin@example.com
+webmaster@example.com = sysadmin@example.com
+sales@example.com = john.smith@example.com
+purchasing@example.com = jane.doe@example.com
+john@example.onmicrosoft.com = john.smith@example.com
