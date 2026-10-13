@@ -49,10 +49,11 @@ See `aliases.example.txt` and `mailboxes.example.txt`. Anything not configured i
 - **Sent**: messages whose sender belongs to the domain, split into internal only and with external recipients (real recipients taken from the SMTP out log). Auto-replies and server notifications are kept apart.
 - **Received**: deliveries into mailboxes, once per message and mailbox, split into internal senders, external senders and server notifications.
 - With a date range the logs are analysed together, so a message crossing midnight stays one message.
+- **Size**: the size of each message is the one written in the routing log when the message enters the server. A message counts for its sender and for each mailbox that receives it. Messages without a size in the logs (some server notifications) are left empty and are not counted in totals and averages; their number is reported on screen and in the "Sources and checks" sheet.
 
 ### Excel output
 
-By default the file only contains the **Summary by account** sheet (with daily averages). Add the other sheets with short flags, which can be combined:
+By default the file only contains the **Summary by account** sheet, with daily averages and, for each account, the total size sent and received (MB) and the average size per message sent and received (KB). The **Message detail** and **Detail by account** sheets have a size column (KB), and **By day** has the MB sent and received per day. Add the other sheets with short flags, which can be combined:
 
 | Flag | Sheet |
 |------|-------|
@@ -107,10 +108,11 @@ Vedi `aliases.example.txt` e `mailboxes.example.txt`. Quello che non è configur
 - **Inviate** (Sent): messaggi con mittente del dominio, divisi tra solo interni e con destinatari esterni (destinatari reali presi dal log SMTP in uscita). Risposte automatiche e notifiche del server sono tenute a parte.
 - **Ricevute** (Received): consegne nelle caselle, una volta per messaggio e per casella, divise tra mittenti interni, esterni e notifiche del server.
 - Con un intervallo di date i log sono analizzati insieme, quindi un messaggio a cavallo della mezzanotte resta uno solo.
+- **Peso**: la dimensione di ogni messaggio è quella scritta nel log di instradamento quando il messaggio entra nel server. Un messaggio conta per il mittente e per ogni casella che lo riceve. I messaggi senza dimensione nei log (alcune notifiche del server) restano vuoti e non entrano in totali e medie; il loro numero è indicato a schermo e nel foglio "Sources and checks".
 
 ### Excel prodotto
 
-Di default il file contiene solo il foglio **Summary by account** (riepilogo, con media giornaliera). Gli altri fogli si aggiungono con opzioni brevi, combinabili tra loro:
+Di default il file contiene solo il foglio **Summary by account** (riepilogo), con la media giornaliera e, per ogni account, il peso totale inviato e ricevuto (MB) e il peso medio per messaggio inviato e ricevuto (KB). I fogli **Message detail** e **Detail by account** hanno una colonna con il peso (KB), e **By day** i MB inviati e ricevuti per giorno. Gli altri fogli si aggiungono con opzioni brevi, combinabili tra loro:
 
 | Opzione | Foglio |
 |---------|--------|

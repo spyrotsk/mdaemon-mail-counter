@@ -68,7 +68,8 @@ SHEETS: by default the Excel file only has the "Summary by account" sheet. Add t
 
 OUTPUT: mail_count_<domain-first-label>_YYYY-MM-DD.xlsx (one day) or
   mail_count_<domain-first-label>_<from>_<to>.xlsx (range) in the log folder, with the sheets
-  Summary by account (whole period, with daily averages over the days that have logs) / By day /
+  Summary by account (whole period, with daily averages over the days that have logs, total and
+  average message size) / By day /
   Message detail / Detail by account / Mailboxes and aliases / Sources and checks,
   plus a summary on screen.
 """
@@ -271,6 +272,7 @@ def parse_routing(path):
             if k == "Size":
                 s, _, p = v.partition("; ")
                 cur["path"] = p.strip("<>")
+                cur["size"] = int(s) if s.strip().isdigit() else None
             else:
                 cur[k] = v
     return blocks
@@ -495,7 +497,7 @@ def build_messages(B, out, D, account_of=None, folder2acc=None):
         f = addr(b["From"])
         m = dict(ts=b["ts"], frm=acc_of(f), from_raw=b["From"], to_hdr=b["To"], subj=b["Subject"],
                  mid=b["Message-ID"].strip(), origin=origin, local=[], remote=[], fwd=[],
-                 deleted=False, n_inbound=0)
+                 deleted=False, n_inbound=0, size=b.get("size"))
         msgs.append(m)
         return m
 
@@ -562,6 +564,13 @@ def build_messages(B, out, D, account_of=None, folder2acc=None):
 def count(msgs, D):
     acc = collections.defaultdict(collections.Counter)
     rows = []
+
+    def add_size(c, k, m):
+        # messages without a size in the logs are left out of totals and averages
+        if m["size"] is not None:
+            c[k + "_bytes"] += m["size"]
+            c[k + "_sized"] += 1
+
     for m in msgs:
         f = m["frm"]
         if D.internal(f) and m["kind"] != "MDaemon server notification":
@@ -572,6 +581,7 @@ def count(msgs, D):
                 acc[f]["sent"] += 1
                 acc[f]["sent_ext" if m["exts"] else "sent_int"] += 1
                 acc[f]["n_ext_rcpt"] += len(m["exts"])
+                add_size(acc[f], "sent", m)
                 rows.append((f, "Sent", m))
         for fw, rc in m["fwd"]:
             acc[fw]["fwd"] += 1
@@ -588,6 +598,7 @@ def count(msgs, D):
                 acc[mb]["rx_ext"] += 1
                 k = "Received from external"
             acc[mb]["rx"] += 1
+            add_size(acc[mb], "rx", m)
             rows.append((mb, k, m))
     return acc, rows
 
@@ -603,6 +614,15 @@ def put(ws, r, c, v):
         cell.data_type = "s"
         return cell
     return ws.cell(r, c, v)
+
+
+def mb(n):
+    return round(n / 1048576, 2)
+
+
+def kb(n, count=1):
+    """Size in KB, or the average over count messages; None when there is nothing to show."""
+    return round(n / count / 1024, 1) if n is not None and count else None
 
 
 def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None):
@@ -629,7 +649,8 @@ def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None)
     cols = ["Account", "Sent (total)", "Sent to internal only", "Sent with external recipients",
             "No. of external recipients", "Auto-replies sent", "Received (total)",
             "Received from internal", "Received from external", "MDaemon notifications received",
-            "Automatic forwards to external", "Daily average sent", "Daily average received"]
+            "Automatic forwards to external", "Daily average sent", "Daily average received",
+            "Sent size (MB)", "Received size (MB)", "Average sent size (KB)", "Average received size (KB)"]
     keys = ["sent", "sent_int", "sent_ext", "n_ext_rcpt", "auto", "rx", "rx_int", "rx_ext", "rx_sys", "fwd"]
     header(ws, cols)
     for r, a in enumerate(accounts, 2):
@@ -638,16 +659,24 @@ def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None)
             ws.cell(r, j, acc[a][k])
         ws.cell(r, len(keys) + 2, round(acc[a]["sent"] / len(days), 1))
         ws.cell(r, len(keys) + 3, round(acc[a]["rx"] / len(days), 1))
+        ws.cell(r, len(keys) + 4, mb(acc[a]["sent_bytes"]))
+        ws.cell(r, len(keys) + 5, mb(acc[a]["rx_bytes"]))
+        ws.cell(r, len(keys) + 6, kb(acc[a]["sent_bytes"], acc[a]["sent_sized"]))
+        ws.cell(r, len(keys) + 7, kb(acc[a]["rx_bytes"], acc[a]["rx_sized"]))
     n = len(accounts) + 1
     t = n + 1
     ws.cell(t, 1, "TOTAL").font = Font(bold=True)
     for j in range(2, len(cols) + 1):
         L = get_column_letter(j)
         ws.cell(t, j, "=SUM(%s2:%s%d)" % (L, L, n)).font = Font(bold=True)
+    # an average of averages would be wrong: the total row has the average over all messages
+    for j, k in ((6, "sent"), (7, "rx")):
+        ws.cell(t, len(keys) + j, kb(sum(acc[a][k + "_bytes"] for a in accounts),
+                                     sum(acc[a][k + "_sized"] for a in accounts)))
     for j in range(1, len(cols) + 1):
         ws.cell(t, j).fill = TF
     ws.row_dimensions[1].height = 45
-    widths(ws, [34] + [14] * 12)
+    widths(ws, [34] + [14] * (len(cols) - 1))
     ws.auto_filter.ref = "A1:%s%d" % (get_column_letter(len(cols)), n)
 
     if len(days) > 1:
@@ -656,18 +685,22 @@ def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None)
             d = m["ts"][:10]
             if k == "Sent":
                 g[x][(d, "s")] += 1
+                g[x][(d, "sb")] += m["size"] or 0
             elif k.startswith("Received"):
                 g[x][(d, "r")] += 1
+                g[x][(d, "rb")] += m["size"] or 0
         wsg = wb.create_sheet("By day")
         cg = ["Account"]
         for d in days:
-            cg += ["%s sent" % d, "%s received" % d]
+            cg += ["%s sent" % d, "%s received" % d, "%s sent MB" % d, "%s received MB" % d]
         header(wsg, cg)
         for r, x in enumerate(accounts, 2):
             put(wsg, r, 1, x)
             for j, d in enumerate(days):
-                wsg.cell(r, 2 + 2 * j, g[x][(d, "s")])
-                wsg.cell(r, 3 + 2 * j, g[x][(d, "r")])
+                wsg.cell(r, 2 + 4 * j, g[x][(d, "s")])
+                wsg.cell(r, 3 + 4 * j, g[x][(d, "r")])
+                wsg.cell(r, 4 + 4 * j, mb(g[x][(d, "sb")]))
+                wsg.cell(r, 5 + 4 * j, mb(g[x][(d, "rb")]))
         wsg.cell(t, 1, "TOTAL").font = Font(bold=True)
         for j in range(2, len(cg) + 1):
             L = get_column_letter(j)
@@ -679,7 +712,7 @@ def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None)
 
     ws2 = wb.create_sheet("Message detail")
     header(ws2, ["Date/time", "Kind", "Direction", "Sender", "Internal recipients (mailboxes)",
-                 "External recipients", "Subject", "Message-ID", "Notes"])
+                 "External recipients", "Subject", "Size (KB)", "Message-ID", "Notes"])
     for r, m in enumerate(sorted(msgs, key=lambda m: m["ts"]), 2):
         if D.internal(m["frm"]):
             direction = "Sent to external" if m["exts"] else "Internal"
@@ -693,21 +726,21 @@ def write_excel(path, acc, rows, msgs, D, sources, mailboxes, days, sheets=None)
         for fw, rc in m["fwd"]:
             notes.append("Automatic forward from %s to %s" % (fw, ", ".join(rc)))
         vals = [m["ts"], m["kind"], direction, m["from_raw"], ", ".join(m["ints"]), ", ".join(m["exts"]),
-                m["subj"], m["mid"], "; ".join(notes)]
+                m["subj"], kb(m["size"]), m["mid"], "; ".join(notes)]
         for j, v in enumerate(vals, 1):
             put(ws2, r, j, v)
-    widths(ws2, [19, 24, 22, 40, 45, 45, 60, 40, 40])
-    ws2.auto_filter.ref = "A1:I%d" % (len(msgs) + 1)
+    widths(ws2, [19, 24, 22, 40, 45, 45, 60, 11, 40, 40])
+    ws2.auto_filter.ref = "A1:J%d" % (len(msgs) + 1)
 
     ws3 = wb.create_sheet("Detail by account")
     header(ws3, ["Account", "Movement", "Date/time", "Sender", "Internal recipients (mailboxes)",
-                 "External recipients", "Subject"])
+                 "External recipients", "Subject", "Size (KB)"])
     for r, (a, k, m) in enumerate(sorted(rows, key=lambda x: (x[0], x[1], x[2]["ts"])), 2):
         for j, v in enumerate([a, k, m["ts"], m["from_raw"], ", ".join(m["ints"]), ", ".join(m["exts"]),
-                               m["subj"]], 1):
+                               m["subj"], kb(m["size"])], 1):
             put(ws3, r, j, v)
-    widths(ws3, [32, 30, 19, 40, 45, 45, 60])
-    ws3.auto_filter.ref = "A1:G%d" % (len(rows) + 1)
+    widths(ws3, [32, 30, 19, 40, 45, 45, 60, 11])
+    ws3.auto_filter.ref = "A1:H%d" % (len(rows) + 1)
 
     ws5 = wb.create_sheet("Mailboxes and aliases")
     header(ws5, ["Account", "Mailbox folder on the server", "Origin", "Aliases from aliases.txt",
@@ -911,6 +944,7 @@ def main():
     tm = collections.Counter(m["kind"] for m in msgs)
     merged = sum(m["n_inbound"] - 1 for m in msgs if m["n_inbound"] > 1)
     deleted = [m for m in msgs if m["deleted"]]
+    sized = [m["size"] for m in msgs if m["size"] is not None]
     period = requested[0] if len(requested) == 1 else "from %s to %s" % (requested[0], requested[-1])
     sources = [
         ("Requested period", period),
@@ -926,6 +960,11 @@ def main():
                             "notifications; %d auto-replies)" % (len(msgs), tm["normal"], merged,
                                                                  tm["MDaemon server notification"],
                                                                  tm["auto-reply"])),
+        ("Message size", "%s MB in total, %s KB on average over the %d messages with a size in the logs; "
+                         "%d messages without a size (left empty, not counted in totals and averages). "
+                         "The size is the one written in the routing log when the message enters the server. "
+                         "In the summary a message counts for its sender and for each mailbox that receives it."
+         % (mb(sum(sized)), kb(sum(sized), len(sized)), len(sized), len(msgs) - len(sized))),
     ]
     for d, name, types, chk in per_day:
         pre = "%s - " % d if len(days) > 1 else ""
@@ -975,6 +1014,12 @@ def main():
     print("Sent %d (internal only %d, with external %d) | Received %d (from internal %d, from external %d, "
           "notifications %d)" % (tot["sent"], tot["sent_int"], tot["sent_ext"], tot["rx"], tot["rx_int"],
                                  tot["rx_ext"], tot["rx_sys"]))
+    print("Size: %s MB in total, %s KB on average per message | sent %s MB (average %s KB), "
+          "received %s MB (average %s KB)" % (
+              mb(sum(sized)), kb(sum(sized), len(sized)), mb(tot["sent_bytes"]),
+              kb(tot["sent_bytes"], tot["sent_sized"]), mb(tot["rx_bytes"]), kb(tot["rx_bytes"], tot["rx_sized"])))
+    if len(sized) < len(msgs):
+        print("NOTE: %d messages have no size in the logs and are not counted in the sizes" % (len(msgs) - len(sized)))
     for d, name, types, chk in per_day:
         for k, v in chk:
             print(" - %s %s: %s" % (d, k, v))
